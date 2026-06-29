@@ -42,6 +42,14 @@
 
       <div class="form-row">
         <div class="form-group">
+          <label>Categoria</label>
+          <select id="betCategory" onchange="updateBetTypes()">
+            <option value="match">📍 Partida (total)</option>
+            <option value="team">⚽ Por Time</option>
+            <option value="player">👤 Por Jogador</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label>Liga / Campeonato</label>
           <input type="text" id="league" placeholder="Ex: Premier League" list="leagues">
           <datalist id="leagues">
@@ -52,17 +60,9 @@
             <option value="Ligue 1">
             <option value="Brasileirão Série A">
             <option value="Champions League">
-            <option value="Copa do Mundo">
+            <option value="Copa do Mundo 2026">
             <option value="Libertadores">
           </datalist>
-        </div>
-        <div class="form-group">
-          <label>Tipo de Aposta</label>
-          <select id="betType">
-            <option value="cards">Cartões (amarelo/vermelho)</option>
-            <option value="goals">Gols</option>
-            <option value="corners">Escanteios</option>
-          </select>
         </div>
       </div>
 
@@ -73,11 +73,28 @@
         </div>
         <div class="form-group">
           <label>Time Visitante</label>
-          <input type="text" id="awayTeam" placeholder="Ex: Tunisia">
+          <input type="text" id="awayTeam" placeholder="Ex: Argentina">
         </div>
       </div>
 
-      <div class="form-row three">
+      <div id="playerField" class="form-group" style="display:none;">
+        <label>Nome do Jogador</label>
+        <input type="text" id="playerName" placeholder="Ex: Lionel Messi">
+      </div>
+
+      <div id="teamField" class="form-group" style="display:none;">
+        <label>Time</label>
+        <select id="teamSide">
+          <option value="home">Casa (mandante)</option>
+          <option value="away">Visitante</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Tipo de Mercado</label>
+          <select id="betType"></select>
+        </div>
         <div class="form-group">
           <label>Condição</label>
           <select id="conditionType">
@@ -86,6 +103,9 @@
             <option value="exact">Exato</option>
           </select>
         </div>
+      </div>
+
+      <div class="form-row">
         <div class="form-group">
           <label>Valor</label>
           <input type="number" id="conditionValue" step="0.5" value="1.5" min="0.5">

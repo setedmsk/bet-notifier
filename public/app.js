@@ -1,8 +1,8 @@
 let subscription = null
 
 async function registerServiceWorker() {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    setNotificationStatus('off', 'Seu navegador não suporta notificações push')
+  if (!('serviceWorker' in navigator)) {
+    setNotificationStatus('off', '🔕 Navegador não suporta')
     return false
   }
 
@@ -11,10 +11,14 @@ async function registerServiceWorker() {
     console.log('Service Worker registrado')
     return true
   } catch (err) {
-    console.error('Erro ao registrar Service Worker:', err)
-    setNotificationStatus('off', 'Erro ao registrar Service Worker')
+    console.error('Erro SW:', err)
     return false
   }
+}
+
+function isPwaMode() {
+  return window.matchMedia('(display-mode: standalone)').matches ||
+         window.navigator.standalone === true
 }
 
 async function setupPush() {
@@ -158,12 +162,65 @@ function updateStats(bets) {
   document.getElementById('wonStats').textContent = bets.filter(b => b.status === 'won').length
 }
 
+const BET_OPTIONS = {
+  match: [
+    ['cards', 'Cartões (amarelo/vermelho)'],
+    ['goals', 'Gols'],
+    ['corners', 'Escanteios'],
+    ['offsides', 'Impedimentos'],
+    ['total_shots', 'Finalizações (total)'],
+    ['shots_on_target', 'Chutes no Gol'],
+    ['shots_off_target', 'Chutes pra Fora'],
+    ['fouls', 'Faltas'],
+    ['throwins', 'Laterais'],
+    ['goal_kicks', 'Tiros de Meta'],
+    ['penalties', 'Pênaltis'],
+    ['free_kicks', 'Faltas Perigosas']
+  ],
+  team: [
+    ['team_goals', 'Gols'],
+    ['team_cards', 'Cartões'],
+    ['team_corners', 'Escanteios'],
+    ['team_shots_on_target', 'Chutes no Gol'],
+    ['team_offsides', 'Impedimentos'],
+    ['team_fouls', 'Faltas']
+  ],
+  player: [
+    ['player_goals', 'Gols'],
+    ['player_cards', 'Cartões'],
+    ['player_shots_on_target', 'Chutes no Gol'],
+    ['player_assists', 'Assistências'],
+    ['player_fouls', 'Faltas'],
+    ['player_offsides', 'Impedimentos']
+  ]
+}
+
+const BET_LABELS = {}
+Object.values(BET_OPTIONS).forEach(cat => cat.forEach(([k, v]) => { BET_LABELS[k] = v }))
+
+function updateBetTypes() {
+  const cat = document.getElementById('betCategory').value
+  const sel = document.getElementById('betType')
+  const pf = document.getElementById('playerField')
+  const tf = document.getElementById('teamField')
+
+  pf.style.display = cat === 'player' ? 'block' : 'none'
+  tf.style.display = cat === 'team' ? 'block' : 'none'
+
+  sel.innerHTML = BET_OPTIONS[cat].map(([v, l]) => `<option value="${v}">${l}</option>`).join('')
+}
+
 function getBetTypeLabel(type) {
-  return ({ cards: 'Cartões', goals: 'Gols', corners: 'Escanteios' })[type] || type
+  return BET_LABELS[type] || type
 }
 
 function getConditionLabel(type) {
   return ({ over: 'Over', under: 'Under', exact: 'Exato' })[type] || type
+}
+
+function getCategoryBadge(cat) {
+  const labels = { match: '📍 Partida', team: '⚽ Time', player: '👤 Jogador' }
+  return `<span class="badge badge-cat">${labels[cat] || cat}</span> `
 }
 
 function getStatusBadge(status) {
@@ -190,13 +247,16 @@ function renderBets(bets) {
   container.innerHTML = bets.map(bet => `
     <div class="bet-item">
       <div class="info">
-        <div class="teams">${esc(bet.home_team)} vs ${esc(bet.away_team)}</div>
+        <div class="teams">
+          ${bet.player_name ? esc(bet.player_name) + ' • ' : ''}${esc(bet.home_team)} vs ${esc(bet.away_team)}
+          ${bet.team_side ? '<span class="badge">' + (bet.team_side === 'home' ? 'Casa' : 'Fora') + '</span>' : ''}
+        </div>
         <div class="detail">
           ${getConditionLabel(bet.condition_type)} ${bet.condition_value} ${getBetTypeLabel(bet.bet_type)}
           &middot; ${esc(bet.league)}
         </div>
         <div class="meta">
-          ${getStatusBadge(bet.status)}
+          ${getCategoryBadge(bet.category)}${getStatusBadge(bet.status)}
           <span style="font-size:0.75rem;color:var(--text2);">
             ${new Date(bet.created_at + 'Z').toLocaleString('pt-BR')}
           </span>
@@ -217,6 +277,7 @@ function esc(text) {
 }
 
 async function addBet() {
+  const category = document.getElementById('betCategory').value
   const league = document.getElementById('league').value.trim()
   const homeTeam = document.getElementById('homeTeam').value.trim()
   const awayTeam = document.getElementById('awayTeam').value.trim()
@@ -224,6 +285,8 @@ async function addBet() {
   const conditionType = document.getElementById('conditionType').value
   const conditionValue = parseFloat(document.getElementById('conditionValue').value)
   const matchApiId = document.getElementById('matchApiId').value
+  const playerName = document.getElementById('playerName').value.trim()
+  const teamSide = document.getElementById('teamSide').value
 
   if (!league || !homeTeam || !awayTeam) {
     showToast('Preencha todos os campos obrigatórios')
@@ -236,13 +299,16 @@ async function addBet() {
   }
 
   const bet = {
+    category,
     league,
     home_team: homeTeam,
     away_team: awayTeam,
     bet_type: betType,
     condition_type: conditionType,
     condition_value: conditionValue,
-    match_api_id: matchApiId ? parseInt(matchApiId) : null
+    match_api_id: matchApiId ? parseInt(matchApiId) : null,
+    player_name: category === 'player' ? playerName : null,
+    team_side: category === 'team' ? teamSide : null
   }
 
   try {
@@ -279,9 +345,12 @@ async function deleteBet(id) {
 }
 
 function resetForm() {
+  document.getElementById('betCategory').value = 'match'
+  updateBetTypes()
   document.getElementById('league').value = ''
   document.getElementById('homeTeam').value = ''
   document.getElementById('awayTeam').value = ''
+  document.getElementById('playerName').value = ''
   document.getElementById('conditionValue').value = '1.5'
   document.getElementById('matchApiId').value = ''
 }
@@ -308,11 +377,25 @@ async function enableNotifications() {
     return
   }
 
+  if (!('PushManager' in window) && isPwaMode()) {
+    setNotificationStatus('off', '🔕 Atualize para iOS 16.4+ ou Safari 16.4+')
+    return
+  }
+
+  if (!('PushManager' in window)) {
+    setNotificationStatus('off', '📲 Adicione à Tela de Início e tente novamente')
+    showToast('Toque em Compartilhar → Adicionar à Tela de Início')
+    return
+  }
+
   const statusEl = document.getElementById('notificationStatus')
   statusEl.textContent = '🔄 Solicitando permissão...'
 
   try {
-    const permission = await Notification.requestPermission()
+    let permission = Notification.permission
+    if (permission === 'default') {
+      permission = await Notification.requestPermission()
+    }
     if (permission !== 'granted') {
       setNotificationStatus('off', '🔕 Permissão negada - ative nas Configurações do iOS')
       return
@@ -329,6 +412,7 @@ async function enableNotifications() {
 }
 
 async function init() {
+  updateBetTypes()
   await registerServiceWorker()
   await loadTodayMatches()
   await loadBets()
@@ -337,6 +421,7 @@ async function init() {
   // Verifica se já tem inscrição ativa
   try {
     const reg = await navigator.serviceWorker.ready
+    if (!('PushManager' in window)) return
     const existing = await reg.pushManager.getSubscription()
     if (existing) {
       subscription = existing

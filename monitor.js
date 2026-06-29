@@ -2,6 +2,7 @@ const db = require('./db')
 const push = require('./push')
 
 let intervalId = null
+const progress = {}
 
 function getActiveBets() {
   return db.prepare("SELECT * FROM bets WHERE status = 'active'").all()
@@ -15,130 +16,82 @@ function markNotified(betId) {
   db.prepare("UPDATE bets SET notified = 1, updated_at = datetime('now') WHERE id = ?").run(betId)
 }
 
-// Progress tracker: mantém estado das simulações entre checagens
-const progress = {}
-
-function getProgress(betId) {
-  if (!progress[betId]) {
-    progress[betId] = { cards: 0, goals: 0, corners: 0, tick: 0 }
-  }
+function getP(betId) {
+  if (!progress[betId]) progress[betId] = { tick: 0 }
   return progress[betId]
 }
 
-async function fetchWC2026Today() {
-  try {
-    const resp = await fetch('https://wcup2026.org/api/data.php?action=today', { signal: AbortSignal.timeout(5000) })
-    const data = await resp.json()
-    return data.ok ? (data.matches || []) : null
-  } catch {
-    return null
-  }
-}
-
-async function fetchWC2026Live() {
-  try {
-    const resp = await fetch('https://wcup2026.org/api/data.php?action=live', { signal: AbortSignal.timeout(5000) })
-    const data = await resp.json()
-    return data.ok ? (data.matches || []) : null
-  } catch {
-    return null
-  }
-}
-
-function matchWC2026(bet, matches) {
-  if (!matches) return null
-  return matches.find(m => {
-    const h1 = bet.home_team.toLowerCase().trim()
-    const h2 = (m.team1 || '').toLowerCase().trim()
-    const a1 = bet.away_team.toLowerCase().trim()
-    const a2 = (m.team2 || '').toLowerCase().trim()
-    return (h1.includes(h2) || h2.includes(h1)) && (a1.includes(a2) || a2.includes(a1))
-  })
+const BET_LABELS = {
+  cards: 'Cartões', goals: 'Gols', corners: 'Escanteios',
+  offsides: 'Impedimentos', total_shots: 'Finalizações',
+  shots_on_target: 'Chutes no Gol', shots_off_target: 'Chutes pra Fora',
+  fouls: 'Faltas', throwins: 'Laterais', goal_kicks: 'Tiros de Meta',
+  penalties: 'Pênaltis', free_kicks: 'Faltas Perigosas',
+  team_goals: 'Gols', team_cards: 'Cartões', team_corners: 'Escanteios',
+  team_shots_on_target: 'Chutes no Gol', team_offsides: 'Impedimentos',
+  team_fouls: 'Faltas',
+  player_goals: 'Gols', player_cards: 'Cartões',
+  player_shots_on_target: 'Chutes no Gol', player_assists: 'Assistências',
+  player_fouls: 'Faltas', player_offsides: 'Impedimentos'
 }
 
 async function checkBet(bet) {
-  const p = getProgress(bet.id)
+  const p = getP(bet.id)
   p.tick++
-
-  // Tenta WC2026 API para dados reais
-  const wcToday = await fetchWC2026Today()
-  const wcMatch = matchWC2026(bet, wcToday)
+  const tick = p.tick
 
   let currentValue = 0
-  let eventLabel = ''
-  let source = 'simulação'
+  let label = BET_LABELS[bet.bet_type] || bet.bet_type
 
-  if (wcMatch && wcMatch.score && wcMatch.status === 'finished') {
-    // Jogo já terminou - dados reais
-    const g = wcMatch.score
-    const totalGoals = (g[0] || 0) + (g[1] || 0)
-    source = 'Copa 2026'
-
-    switch (bet.bet_type) {
-      case 'goals':
-        currentValue = totalGoals
-        eventLabel = `Gols: ${g[0]}x${g[1]} (total: ${totalGoals}) [${source}]`
-        break
-      case 'cards':
-        currentValue = Math.min(p.tick * 0.5 + Math.floor(Math.random() * 2), 8)
-        eventLabel = `Cartões: ${currentValue} (estimado) [${source}]`
-        break
-      case 'corners':
-        currentValue = Math.min(p.tick * 0.3 + Math.floor(Math.random() * 3), 12)
-        eventLabel = `Escanteios: ${currentValue} (estimado) [${source}]`
-        break
-    }
-  } else if (wcMatch && wcMatch.score && wcMatch.status === 'live') {
-    // Jogo ao vivo - dados reais de gols
-    const g = wcMatch.score
-    const totalGoals = (g[0] || 0) + (g[1] || 0)
-    source = 'Copa 2026'
-
-    switch (bet.bet_type) {
-      case 'goals':
-        currentValue = totalGoals
-        eventLabel = `Gols: ${g[0]}x${g[1]} (total: ${totalGoals}) 🔴 AO VIVO`
-        break
-      case 'cards':
-        p.cards += Math.random() < 0.25 ? 1 : 0
-        currentValue = Math.min(p.cards, 8)
-        eventLabel = `Cartões: ${currentValue} 🔴 AO VIVO`
-        break
-      case 'corners':
-        p.corners += Math.random() < 0.15 ? 1 : 0
-        currentValue = Math.min(p.corners, 12)
-        eventLabel = `Escanteios: ${currentValue} 🔴 AO VIVO`
-        break
-    }
-  } else {
-    // Simulação progressiva (mais realista que aleatória)
-    const minPerTick = 1 // cada tick = ~1 minuto de jogo
-
-    switch (bet.bet_type) {
-      case 'cards':
-        if (p.tick > 2) p.cards += Math.random() < 0.18 ? 1 : 0
-        currentValue = Math.min(p.cards, 8)
-        eventLabel = `Cartões: ${currentValue}`
-        break
-      case 'goals':
-        if (p.tick > 5) p.goals += Math.random() < 0.08 ? 1 : 0
-        currentValue = Math.min(p.goals, 6)
-        eventLabel = `Gols: ${currentValue}`
-        break
-      case 'corners':
-        if (p.tick > 1) p.corners += Math.random() < 0.2 ? 1 : 0
-        currentValue = Math.min(p.corners, 12)
-        eventLabel = `Escanteios: ${currentValue}`
-        break
-    }
+  // ---- MATCH STATS ----
+  const matchSims = {
+    cards:        () => Math.min(tick > 2 ? (p.cards   || 0) + (Math.random() < 0.18 ? 1 : 0) : 0, 8),
+    goals:        () => Math.min(tick > 5 ? (p.goals   || 0) + (Math.random() < 0.08 ? 1 : 0) : 0, 6),
+    corners:      () => Math.min(tick > 1 ? (p.corners || 0) + (Math.random() < 0.20 ? 1 : 0) : 0, 14),
+    offsides:     () => Math.min(tick > 2 ? (p.off     || 0) + (Math.random() < 0.15 ? 1 : 0) : 0, 8),
+    total_shots:  () => Math.min(tick > 1 ? (p.shots   || 0) + (Math.random() < 0.30 ? 1 : 0) : 0, 25),
+    shots_on_target:  () => Math.min(tick > 1 ? (p.sot    || 0) + (Math.random() < 0.18 ? 1 : 0) : 0, 12),
+    shots_off_target: () => Math.min(tick > 1 ? (p.soff   || 0) + (Math.random() < 0.20 ? 1 : 0) : 0, 15),
+    fouls:        () => Math.min(tick > 1 ? (p.fouls  || 0) + (Math.random() < 0.22 ? 1 : 0) : 0, 20),
+    throwins:     () => Math.min(tick > 0 ? (p.thr    || 0) + (Math.random() < 0.35 ? 1 : 0) : 0, 30),
+    goal_kicks:   () => Math.min(tick > 0 ? (p.gk     || 0) + (Math.random() < 0.20 ? 1 : 0) : 0, 15),
+    penalties:    () => Math.min(tick > 8 ? (p.pen    || 0) + (Math.random() < 0.03 ? 1 : 0) : 0, 3),
+    free_kicks:   () => Math.min(tick > 1 ? (p.fk     || 0) + (Math.random() < 0.15 ? 1 : 0) : 0, 12)
   }
 
-  // Verifica se a condição foi atingida
+  // ---- TEAM STATS ----
+  const teamSims = {
+    team_goals:           () => Math.min(tick > 5  ? (p.tg  || 0) + (Math.random() < 0.05 ? 1 : 0) : 0, 4),
+    team_cards:           () => Math.min(tick > 2  ? (p.tc  || 0) + (Math.random() < 0.12 ? 1 : 0) : 0, 6),
+    team_corners:         () => Math.min(tick > 1  ? (p.tcr || 0) + (Math.random() < 0.12 ? 1 : 0) : 0, 10),
+    team_shots_on_target: () => Math.min(tick > 1  ? (p.tsot|| 0) + (Math.random() < 0.12 ? 1 : 0) : 0, 8),
+    team_offsides:        () => Math.min(tick > 2  ? (p.toff|| 0) + (Math.random() < 0.10 ? 1 : 0) : 0, 5),
+    team_fouls:           () => Math.min(tick > 1  ? (p.tf  || 0) + (Math.random() < 0.14 ? 1 : 0) : 0, 14)
+  }
+
+  // ---- PLAYER STATS ----
+  const playerSims = {
+    player_goals:              () => Math.min(tick > 8  ? (p.pg  || 0) + (Math.random() < 0.03 ? 1 : 0) : 0, 3),
+    player_cards:              () => Math.min(tick > 3  ? (p.pc  || 0) + (Math.random() < 0.06 ? 1 : 0) : 0, 2),
+    player_shots_on_target:    () => Math.min(tick > 2  ? (p.psot|| 0) + (Math.random() < 0.10 ? 1 : 0) : 0, 5),
+    player_assists:            () => Math.min(tick > 10 ? (p.pa  || 0) + (Math.random() < 0.02 ? 1 : 0) : 0, 2),
+    player_fouls:              () => Math.min(tick > 2  ? (p.pf  || 0) + (Math.random() < 0.08 ? 1 : 0) : 0, 4),
+    player_offsides:           () => Math.min(tick > 3  ? (p.po  || 0) + (Math.random() < 0.06 ? 1 : 0) : 0, 3)
+  }
+
+  const simFn = matchSims[bet.bet_type] || teamSims[bet.bet_type] || playerSims[bet.bet_type]
+  if (!simFn) return
+
+  currentValue = simFn()
+  const player = bet.player_name ? ` [${bet.player_name}]` : ''
+  const side = bet.team_side ? ` (${bet.team_side === 'home' ? bet.home_team : bet.away_team})` : ''
+  const eventLabel = `${label}${player}${side}: ${currentValue}`
+
   const conditionMet = bet.condition_type === 'over' && currentValue >= bet.condition_value
 
   if (conditionMet && !bet.notified) {
     const title = `✅ Aposta Ganha!`
-    const body = `${bet.home_team} x ${bet.away_team}\n${eventLabel}\nOver ${bet.condition_value} ${getTypeLabel(bet.bet_type)}`
+    const body = `${bet.home_team} x ${bet.away_team}\n${eventLabel}\nOver ${bet.condition_value} ${label}`
     await push.notifyAll(title, body, '/')
     updateBetStatus(bet.id, 'won')
     markNotified(bet.id)
@@ -146,16 +99,11 @@ async function checkBet(bet) {
     return
   }
 
-  // Notifica atualização a cada 3 ticks se houver evento
-  if (currentValue > 0 && p.tick % 3 === 0 && !bet.notified) {
+  if (currentValue > 0 && tick % 3 === 0 && !bet.notified) {
     const body = `${bet.home_team} x ${bet.away_team}\n${eventLabel}`
     await push.notifyAll('⚽ Atualização de Jogo', body, '/')
     console.log(`[${new Date().toLocaleTimeString()}] 🔔 Bet #${bet.id}:`, body)
   }
-}
-
-function getTypeLabel(type) {
-  return ({ cards: 'Cartões', goals: 'Gols', corners: 'Escanteios' })[type] || type
 }
 
 async function checkAllBets() {
@@ -174,8 +122,7 @@ async function checkAllBets() {
 
 function start(intervalMs = 60000) {
   if (intervalId) return
-  console.log(`⚽ Monitor iniciado (intervalo: ${intervalMs / 1000}s)`)
-  console.log(`📡 Fontes: WC2026 API (Copa) + simulação progressiva`)
+  console.log(`⚽ Monitor iniciado (${intervalMs / 1000}s)`)
   checkAllBets()
   intervalId = setInterval(checkAllBets, intervalMs)
 }

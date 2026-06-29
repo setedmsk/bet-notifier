@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Bet Notifier">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon-192.svg">
+  <title>Bet Notifier</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>⚽ Bet Notifier</h1>
+      <p>Notificações ao vivo das suas apostas</p>
+      <div id="notificationStatus" class="notification-status off">
+        🔕 Notificações desativadas
+      </div>
+    </header>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="value" id="totalStats">0</div>
+        <div class="label">Total Bets</div>
+      </div>
+      <div class="stat-card">
+        <div class="value" id="activeStats">0</div>
+        <div class="label">Ativas</div>
+      </div>
+      <div class="stat-card">
+        <div class="value" id="wonStats">0</div>
+        <div class="label">Ganhas</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:600;margin-bottom:12px;">Nova Aposta</div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Liga / Campeonato</label>
+          <input type="text" id="league" placeholder="Ex: Premier League" list="leagues">
+          <datalist id="leagues">
+            <option value="Premier League">
+            <option value="La Liga">
+            <option value="Serie A">
+            <option value="Bundesliga">
+            <option value="Ligue 1">
+            <option value="Brasileirão Série A">
+            <option value="Champions League">
+            <option value="Copa do Mundo">
+            <option value="Libertadores">
+          </datalist>
+        </div>
+        <div class="form-group">
+          <label>Tipo de Aposta</label>
+          <select id="betType">
+            <option value="cards">Cartões (amarelo/vermelho)</option>
+            <option value="goals">Gols</option>
+            <option value="corners">Escanteios</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Time da Casa</label>
+          <input type="text" id="homeTeam" placeholder="Ex: Alemanha">
+        </div>
+        <div class="form-group">
+          <label>Time Visitante</label>
+          <input type="text" id="awayTeam" placeholder="Ex: Tunisia">
+        </div>
+      </div>
+
+      <div class="form-row three">
+        <div class="form-group">
+          <label>Condição</label>
+          <select id="conditionType">
+            <option value="over">Over (mais que)</option>
+            <option value="under">Under (menos que)</option>
+            <option value="exact">Exato</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Valor</label>
+          <input type="number" id="conditionValue" step="0.5" value="1.5" min="0.5">
+        </div>
+        <div class="form-group">
+          <label>ID da Partida (opcional)</label>
+          <input type="number" id="matchApiId" placeholder="ID API">
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="addBet()">➕ Adicionar Aposta</button>
+        <button class="btn btn-secondary" onclick="resetForm()">Limpar</button>
+      </div>
+    </div>
+
+    <div id="matchesSection" style="display:none;">
+      <div class="section-title">
+        🏆 Jogos em Destaque <span id="matchesCount" style="color:var(--text2);font-weight:400;font-size:0.85rem;"></span>
+        <button class="btn btn-sm btn-secondary" onclick="loadTodayMatches()" style="margin-left:auto;">🔄</button>
+      </div>
+      <div id="matchesList">
+        <div class="empty-state"><p>Carregando jogos...</p></div>
+      </div>
+    </div>
+
+    <div class="section-title">
+      📋 Minhas Apostas <span id="betCount" style="color:var(--text2);font-weight:400;font-size:0.85rem;"></span>
+    </div>
+    <div id="betsList">
+      <div class="empty-state">
+        <div class="icon">📭</div>
+        <p>Nenhuma aposta cadastrada ainda</p>
+        <p style="font-size:0.85rem;margin-top:8px;">Adicione suas apostas acima e receba notificações ao vivo!</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

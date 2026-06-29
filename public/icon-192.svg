@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="32" fill="#0f172a"/>
+  <circle cx="96" cy="85" r="36" fill="#22c55e" stroke="#f1f5f9" stroke-width="3"/>
+  <path d="M82 88 l8 8 20-20" stroke="#f1f5f9" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="96" y="145" text-anchor="middle" fill="#22c55e" font-size="28" font-weight="bold" font-family="sans-serif">BET</text>
+</svg>

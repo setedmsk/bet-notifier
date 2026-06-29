@@ -1,0 +1,19 @@
+{
+  "name": "bet-notifier",
+  "version": "1.0.0",
+  "description": "App de notificação de apostas ao vivo",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "generate-keys": "node -e \"const wp=require('web-push');const keys=wp.generateVAPIDKeys();console.log(JSON.stringify(keys,null,2))\""
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3",
+    "web-push": "^3.6.7"
+  }
+}

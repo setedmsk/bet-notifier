@@ -48,5 +48,6 @@ db.exec(`
 try { db.exec('ALTER TABLE bets ADD COLUMN category TEXT DEFAULT "match"') } catch {}
 try { db.exec('ALTER TABLE bets ADD COLUMN player_name TEXT') } catch {}
 try { db.exec('ALTER TABLE bets ADD COLUMN team_side TEXT') } catch {}
+try { db.exec('ALTER TABLE bets ADD COLUMN match_time TEXT') } catch {}
 
 module.exports = db

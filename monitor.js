@@ -36,6 +36,23 @@ const BET_LABELS = {
 }
 
 async function checkBet(bet) {
+  // Só simular se o jogo já começou
+  if (bet.match_time) {
+    const now = new Date()
+    let matchDate
+    if (bet.match_time.includes('-')) {
+      matchDate = new Date(bet.match_time)
+    } else {
+      // Apenas "HH:MM" - assume hoje
+      const [h, m] = bet.match_time.split(':').map(Number)
+      matchDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m)
+    }
+    if (now < matchDate) {
+      console.log(`  ⏳ Bet #${bet.id}: jogo às ${bet.match_time}, aguardando...`)
+      return
+    }
+  }
+
   const p = getP(bet.id)
   p.tick++
   const tick = p.tick

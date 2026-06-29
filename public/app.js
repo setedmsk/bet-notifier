@@ -107,10 +107,12 @@ async function loadTodayMatches() {
     }
 
     list.innerHTML = matches.map(m => {
-      const hour = new Date(m.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      const matchDate = new Date(m.date)
+      const hour = matchDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      const timeStr = matchDate.toTimeString().slice(0, 5)
       const isLive = m.status === 'LIVE'
       return `
-        <div class="match-card" onclick="selectMatch('${esc(m.league)}', '${esc(m.home_team)}', '${esc(m.away_team)}', ${m.id})">
+        <div class="match-card" onclick="selectMatch('${esc(m.league)}', '${esc(m.home_team)}', '${esc(m.away_team)}', ${m.id}, '${timeStr}')">
           <div class="match-info">
             <div class="match-league">${esc(m.league)}</div>
             <div class="match-teams">
@@ -131,11 +133,12 @@ async function loadTodayMatches() {
   }
 }
 
-function selectMatch(league, home, away, matchId) {
+function selectMatch(league, home, away, matchId, matchTime) {
   document.getElementById('league').value = league
   document.getElementById('homeTeam').value = home
   document.getElementById('awayTeam').value = away
   document.getElementById('matchApiId').value = matchId
+  if (matchTime) document.getElementById('matchTime').value = matchTime
   document.getElementById('conditionValue').value = '1.5'
 
   document.getElementById('betType').value = 'cards'
@@ -254,6 +257,7 @@ function renderBets(bets) {
         <div class="detail">
           ${getConditionLabel(bet.condition_type)} ${bet.condition_value} ${getBetTypeLabel(bet.bet_type)}
           &middot; ${esc(bet.league)}
+          ${bet.match_time ? '<span style="font-size:0.7rem;color:var(--yellow);margin-left:6px;">⏰ ' + bet.match_time + '</span>' : ''}
         </div>
         <div class="meta">
           ${getCategoryBadge(bet.category)}${getStatusBadge(bet.status)}
@@ -308,7 +312,8 @@ async function addBet() {
     condition_value: conditionValue,
     match_api_id: matchApiId ? parseInt(matchApiId) : null,
     player_name: category === 'player' ? playerName : null,
-    team_side: category === 'team' ? teamSide : null
+    team_side: category === 'team' ? teamSide : null,
+    match_time: document.getElementById('matchTime').value || null
   }
 
   try {
@@ -353,6 +358,7 @@ function resetForm() {
   document.getElementById('playerName').value = ''
   document.getElementById('conditionValue').value = '1.5'
   document.getElementById('matchApiId').value = ''
+  document.getElementById('matchTime').value = ''
 }
 
 function showToast(message) {

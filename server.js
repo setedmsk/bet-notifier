@@ -94,15 +94,15 @@ app.get('/api/bets', (req, res) => {
 })
 
 app.post('/api/bets', (req, res) => {
-  const { league, home_team, away_team, bet_type, condition_type, condition_value, match_api_id, category, player_name, team_side } = req.body
+  const { league, home_team, away_team, bet_type, condition_type, condition_value, match_api_id, category, player_name, team_side, match_time } = req.body
 
   if (!league || !home_team || !away_team || !bet_type || !condition_type || condition_value === undefined) {
     return res.status(400).json({ error: 'Campos obrigatórios: league, home_team, away_team, bet_type, condition_type, condition_value' })
   }
 
   const result = db.prepare(
-    'INSERT INTO bets (category, league, home_team, away_team, bet_type, condition_type, condition_value, match_api_id, player_name, team_side) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(category || 'match', league, home_team, away_team, bet_type, condition_type, condition_value, match_api_id || null, player_name || null, team_side || null)
+    'INSERT INTO bets (category, league, home_team, away_team, bet_type, condition_type, condition_value, match_api_id, player_name, team_side, match_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(category || 'match', league, home_team, away_team, bet_type, condition_type, condition_value, match_api_id || null, player_name || null, team_side || null, match_time || null)
 
   const bet = db.prepare('SELECT * FROM bets WHERE id = ?').get(result.lastInsertRowid)
   res.status(201).json(bet)

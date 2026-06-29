@@ -29,29 +29,73 @@ app.get('/api/health', (req, res) => {
 })
 
 app.get('/api/matches/today', async (req, res) => {
-  // Tenta WC2026 API (100% gratuita, sem key)
+  // Raspa o site wcup2026.org (inglês) - dados reais da Copa 2026
   try {
-    const resp = await fetch('https://wcup2026.org/api/data.php?action=today', { signal: AbortSignal.timeout(5000) })
-    const data = await resp.json()
-    if (data.ok && data.matches?.length) {
-      const matches = data.matches.map(m => ({
-        id: 200000 + m.id,
-        league: `Copa do Mundo 2026 - ${m.group || ''}`,
-        home_team: m.team1,
-        away_team: m.team2,
-        home_logo: m.flag1,
-        away_logo: m.flag2,
-        date: new Date(m.datetime * 1000).toISOString(),
-        status: m.status === 'live' ? 'LIVE' : m.status === 'finished' ? 'FT' : 'SCHEDULED',
-        venue: m.ground,
-        score: m.score ? `${m.score[0]}x${m.score[1]}` : null
-      }))
+    const resp = await fetch('https://wcup2026.org/matches.php?lang=en', { signal: AbortSignal.timeout(8000) })
+    const html = await resp.text()
+    function he(s) { return s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'") }
+
+    const now = new Date()
+    const matches = []
+    // Cada <section> é um dia
+    const sections = html.match(/<section[^>]*class="day-block[^"]*"[^>]*>.*?<div class="match-grid">(.*?)<\/section>/gs) || []
+
+    for (const section of sections) {
+      const dateMatch = section.match(/datetime="([^"]+)"[^>]*data-mode="date"/)
+      if (!dateMatch) continue
+      const blockDate = new Date(dateMatch[1])
+      // Pula dias passados (mais de 24h atrás)
+      if (blockDate < new Date(now.getTime() - 86400000)) continue
+
+      // Extrai cada card de jogo
+      const cards = section.match(/<a class="match-card[^"]*"[^>]*>(.*?)<\/a>/gs) || []
+      for (const card of cards) {
+        const idMatch = card.match(/id=(\d+)/)
+        const teams = [...card.matchAll(/team-name[^>]*>([^<]+)</g)]
+        const scoreMatch = card.match(/mc-score-num[^>]*>(\d+)<\/span>\s*<span class="mc-score-sep">\s*:\s*<\/span>\s*<span class="mc-score-num">(\d+)<\/span>/)
+        const dateEl = card.match(/datetime="([^"]+)"/)
+        const badge = card.match(/badge[^"]*badge-(\w+)/)
+        const groundMatch = card.match(/mc-ground[^>]*>([^<]+)</)
+        const roundMatch = section.match(/mc-round[^>]*>([^<]+)</)
+
+        if (teams.length >= 2 && dateEl) {
+          const t1 = he(teams[0][1].trim())
+          const t2 = he(teams[teams.length - 1][1].trim())
+          const badgeVal = badge ? badge[1] : ''
+          let status = 'SCHEDULED'
+          if (badgeVal === 'live') status = 'LIVE'
+          else if (badgeVal === 'done') status = 'FT'
+
+          const dt = new Date(dateEl[1])
+          const score = scoreMatch ? `${scoreMatch[1]}x${scoreMatch[2]}` : null
+          const ground = groundMatch ? he(groundMatch[1].replace(/[📍\s]/g, '').trim()) : null
+          const round = roundMatch ? he(roundMatch[1].trim()) : ''
+
+          matches.push({
+            id: idMatch ? parseInt(idMatch[1]) : 200000 + matches.length,
+            league: `Copa do Mundo 2026${round ? ' - ' + round : ''}`,
+            home_team: t1,
+            away_team: t2,
+            home_logo: null,
+            away_logo: null,
+            date: dt.toISOString(),
+            status,
+            venue: ground,
+            score
+          })
+        }
+      }
+    }
+
+    if (matches.length > 0) {
+      matches.sort((a, b) => new Date(a.date) - new Date(b.date))
       return res.json(matches)
     }
-  } catch {
-    console.log('WC2026 API indisponivel, usando simulacao')
+  } catch (err) {
+    console.log('Falha ao raspar wcup2026.org:', err.message)
   }
 
+  // Fallback: simulação
   const simulated = simulateTodayMatches()
   res.json(simulated)
 })

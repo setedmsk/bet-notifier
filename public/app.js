@@ -302,14 +302,52 @@ function showToast(message) {
   }, 3000)
 }
 
-async function init() {
-  const swOk = await registerServiceWorker()
-  if (swOk) {
-    await setupPush()
+async function enableNotifications() {
+  if (subscription) {
+    showToast('🔔 Notificações já estão ativadas')
+    return
   }
+
+  const statusEl = document.getElementById('notificationStatus')
+  statusEl.textContent = '🔄 Solicitando permissão...'
+
+  try {
+    const permission = await Notification.requestPermission()
+    if (permission !== 'granted') {
+      setNotificationStatus('off', '🔕 Permissão negada - ative nas Configurações do iOS')
+      return
+    }
+
+    const swOk = await registerServiceWorker()
+    if (!swOk) return
+
+    await setupPush()
+  } catch (err) {
+    console.error('Erro:', err)
+    setNotificationStatus('off', '🔕 Erro: ' + err.message)
+  }
+}
+
+async function init() {
+  await registerServiceWorker()
   await loadTodayMatches()
   await loadBets()
   setInterval(loadBets, 30000)
+
+  // Verifica se já tem inscrição ativa
+  try {
+    const reg = await navigator.serviceWorker.ready
+    const existing = await reg.pushManager.getSubscription()
+    if (existing) {
+      subscription = existing
+      setNotificationStatus('on', '🔔 Notificações ativadas')
+      await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(existing.toJSON())
+      }).catch(() => {})
+    }
+  } catch {}
 }
 
 document.addEventListener('DOMContentLoaded', init)
